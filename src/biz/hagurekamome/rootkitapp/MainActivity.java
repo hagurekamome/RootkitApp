@@ -69,6 +69,7 @@ public class MainActivity extends Activity {
 				result = getRoot(prepareKernelCred, commitCreds, ptmxFops);
 
 				if(result){
+					msgView.append("\nSucceedes get temporary root.\n\n");
 				
 					File suFile = writeAssetToCacheFile("su", 00644);
 					if(suFile == null){
@@ -97,8 +98,12 @@ public class MainActivity extends Activity {
 				
 					String str_result;
 				
+					msgView.append("Cpoy Files...\n\n");
+
 					str_result = executeScript("install_tool.sh");
-					msgView.append(str_result);
+
+					msgView.append(str_result + "\n\n");
+
 					if(scriptResult == 0){
 						msgView.append("Succeeded get root!!\n\n");
 						msgView.append("Please Reboot.");
@@ -141,7 +146,7 @@ public class MainActivity extends Activity {
 					getrootButton.setEnabled(false);
 					break;
 				case -1:
-					msgView.setText("Get Root False!!\n\n");
+					msgView.append("Get Root False!!\n\n");
 					msgView.append("Because I failed to get the temporary root.");
 					break;
 				default:
@@ -265,7 +270,7 @@ public class MainActivity extends Activity {
 	class AsyncAppTask extends AsyncTask<Void, Void, Integer>{
 		@Override
 		protected void onPreExecute() {
-    		msgView.setText("Searching Addresses.\nWait a few moment...");
+    		msgView.setText("Searching Addresses.\nWait a few moment...\n\n");
 			getAddrButton.setEnabled(false);
 			
 		}
@@ -285,9 +290,9 @@ public class MainActivity extends Activity {
 				prepareKernelCred = addr[0];
 				commitCreds = addr[1];
 				ptmxFops = addr[2];
-				msgView.setText("Get Address Success\n\n");
-				msgView.append("0x" + Long.toHexString(prepareKernelCred)+ ": prepare_kernel_cred\nn" );
-				msgView.append("0x" + Long.toHexString(commitCreds) + ": commit_creds\n");
+				msgView.append("Get Address Success\n\n");
+				msgView.append("0x" + Long.toHexString(prepareKernelCred)+ ": prepare_kernel_cred\n\n" );
+				msgView.append("0x" + Long.toHexString(commitCreds) + ": commit_creds\n\n");
 				msgView.append("0x" + Long.toHexString(ptmxFops) + ": ptmx_fops\n\n");
 				msgView.append("Press GetRoot Button\n");
 
