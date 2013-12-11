@@ -113,19 +113,12 @@ static bool run_exploit(void) {
 }
 
 JNIEXPORT int JNICALL Java_biz_hagurekamome_rootkitapp_MainActivity_native_1getroot
-  (JNIEnv *env, jobject jo, jstring jstr, jlong prepare_kernel_cred_addr, jlong commit_creds_addr, jlong ptmx_fops_addr)
+  (JNIEnv *env, jobject jo, jlong prepare_kernel_cred_addr, jlong commit_creds_addr, jlong ptmx_fops_addr)
 {
-	char cachebuf[256];
-	const char *execommand = "/install_tool.sh ";
-	const char *param = " >/data/local/tmp/err.txt 2>&1";
-	const char *str;
 	int result;
 
 	unsigned long prepare_kernel_cred_address;
 	unsigned long commit_creds_address;
-
-	strcpy(cachebuf, execommand);
-	strcat(cachebuf, param);
 
 	pid_t pid;
 
@@ -139,17 +132,8 @@ JNIEXPORT int JNICALL Java_biz_hagurekamome_rootkitapp_MainActivity_native_1getr
 	run_exploit();
 
 	if (getuid() != 0) {
-		return -2;
+		return -1;
 	}
 
-	result = system(cachebuf);
-/*
-	result = system("/data/data/biz.hagurekamome.jnitest/cache/install_tool.sh >/data/local/tmp/err.txt 2>&1");
-*/
-	if (result != 0){
-		return result;
-	}
-	
 	return 0;
-
 }	

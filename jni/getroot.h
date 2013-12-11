@@ -35,6 +35,8 @@ extern "C" {
 #define biz_hagurekamome_rootkitapp_MainActivity_BIND_IMPORTANT 64L
 #undef biz_hagurekamome_rootkitapp_MainActivity_BIND_ADJUST_WITH_ACTIVITY
 #define biz_hagurekamome_rootkitapp_MainActivity_BIND_ADJUST_WITH_ACTIVITY 128L
+#undef biz_hagurekamome_rootkitapp_MainActivity_BIND_VISIBLE
+#define biz_hagurekamome_rootkitapp_MainActivity_BIND_VISIBLE 256L
 #undef biz_hagurekamome_rootkitapp_MainActivity_BIND_NOT_VISIBLE
 #define biz_hagurekamome_rootkitapp_MainActivity_BIND_NOT_VISIBLE 1073741824L
 #undef biz_hagurekamome_rootkitapp_MainActivity_CONTEXT_INCLUDE_CODE
@@ -64,10 +66,10 @@ extern "C" {
 /*
  * Class:     biz_hagurekamome_rootkitapp_MainActivity
  * Method:    native_getroot
- * Signature: (Ljava/lang/String;JJJ)I
+ * Signature: (JJJ)I
  */
 JNIEXPORT jint JNICALL Java_biz_hagurekamome_rootkitapp_MainActivity_native_1getroot
-  (JNIEnv *, jobject, jstring, jlong, jlong, jlong);
+  (JNIEnv *, jobject, jlong, jlong, jlong);
 
 #ifdef __cplusplus
 }

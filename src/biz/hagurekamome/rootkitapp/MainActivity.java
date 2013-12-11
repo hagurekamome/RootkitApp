@@ -24,7 +24,7 @@ public class MainActivity extends Activity {
 	private Button getrootButton;
 	private Button rebootButton;
 	private TextView msgView;
-	private String cachePath;
+	private int scriptResult;
 	private long prepareKernelCred = 0;
 	private long commitCreds = 0;
 	private long ptmxFops = 0;
@@ -33,7 +33,7 @@ public class MainActivity extends Activity {
 		System.loadLibrary("getroot");
 	}
 
-	public native int native_getroot(String cachePath, long prepare_kernel_cred, long commit_creds, long ptmx_fops);
+	public native int native_getroot(long prepare_kernel_cred, long commit_creds, long ptmx_fops);
 	public native int native_getaddr(long address[]);
 	boolean result = false;
 	
@@ -41,7 +41,6 @@ public class MainActivity extends Activity {
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
-		cachePath = this.getCacheDir().toString();
 		
 		getAddrButton = (Button)findViewById(R.id.button1);
 		getrootButton = (Button)findViewById(R.id.button2);
@@ -66,44 +65,56 @@ public class MainActivity extends Activity {
 			
 			@Override
 			public void onClick(View v) {
-				File suFile = writeAssetToCacheFile("su", 00644);
-				if(suFile == null){
-					msgView.setText("su file not found");
-					return;
-				}
-
-				File busyboxFile = writeAssetToCacheFile("busybox", 00755);
-				if(busyboxFile == null){
-					msgView.setText("busybox file not found");
-					return;
-				}
-
-				File shFile = writeAssetToCacheFile("install_tool.sh", 00755);
-				if(shFile == null){
-					msgView.setText("install_tool.sh file not found");
-					return;
-				}
-
-				File ricFile = writeAssetToCacheFile("00stop_ric", 00644);
-				if(ricFile == null){
-					msgView.setText("00stopric file not found");
-					return;
-				}
-
-				File apkFile = writeAssetToCacheFile("Superuser.apk", 00644);
-				if(apkFile == null){
-					msgView.setText("SuperSU file not found");
-					return;
-				}
 
 				result = getRoot(prepareKernelCred, commitCreds, ptmxFops);
-				
 
-				suFile.delete();
-				busyboxFile.delete();
-				shFile.delete();
-				ricFile.delete();
-				apkFile.delete();
+				if(result){
+				
+					File suFile = writeAssetToCacheFile("su", 00644);
+					if(suFile == null){
+						msgView.setText("su file not found");
+						return;
+					}
+
+					File busyboxFile = writeAssetToCacheFile("busybox", 00755);
+					if(busyboxFile == null){
+						msgView.setText("busybox file not found");
+						return;
+					}
+
+					File ricFile = writeAssetToCacheFile("00stop_ric", 00644);
+					if(ricFile == null){
+						msgView.setText("00stopric file not found");
+						return;
+					}
+
+					File apkFile = writeAssetToCacheFile("Superuser.apk", 00644);
+					if(apkFile == null){
+						msgView.setText("SuperSU file not found");
+						return;
+					}
+
+				
+					String str_result;
+				
+					str_result = executeScript("install_tool.sh");
+					msgView.append(str_result);
+					if(scriptResult == 0){
+						msgView.append("Succeeded get root!!\n\n");
+						msgView.append("Please Reboot.");
+						rebootButton.setEnabled(true);
+					}else{
+						msgView.append("Succeeded get the temporary root.\n\n");
+						msgView.append("But Script Error.\n\n");
+						msgView.append("Error Code=" + Integer.toString(scriptResult));
+						msgView.append("\nPlease Check\n/data/local/tmp/err.txt");
+					}
+
+					suFile.delete();
+					busyboxFile.delete();
+					ricFile.delete();
+					apkFile.delete();
+				}
 				
 			}
 			
@@ -112,9 +123,8 @@ public class MainActivity extends Activity {
 		rebootButton.setOnClickListener(new OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				String result;
-				result = executeScript("reboot.sh");
-				msgView.append(result);
+				String str_result = executeReboot();
+				msgView.append(str_result);
 			}
 		});
 
@@ -124,24 +134,17 @@ public class MainActivity extends Activity {
 		int native_resuult;
 		
 		try{
-			native_resuult = native_getroot(cachePath, prepare_kernel_cred, commit_creds, ptmx_fops);
+			native_resuult = native_getroot(prepare_kernel_cred, commit_creds, ptmx_fops);
 
 			switch(native_resuult){
 				case 0:		//getroot success
 					getrootButton.setEnabled(false);
-					msgView.setText("Succeeded get root!!\n\n");
-					msgView.append("Please Reboot.");
-					rebootButton.setEnabled(true);
 					break;
 				case -1:
 					msgView.setText("Get Root False!!\n\n");
 					msgView.append("Because I failed to get the temporary root.");
 					break;
 				default:
-					msgView.setText("Succeeded get the temporary root.\n\n");
-					msgView.append("But Script Error.\n\n");
-					msgView.append("Error Code=" + Integer.toString(native_resuult));
-					msgView.append("\nPlease Check\n/data/local/tmp/err.txt");
 					break;
 			}
 			if(native_resuult == 0)
@@ -187,6 +190,7 @@ public class MainActivity extends Activity {
 		}
 	}
 
+
 	private String executeScript(String name) {
 		File scriptFile = writeAssetToCacheFile(name, 00755);
 		if (scriptFile == null)
@@ -194,10 +198,9 @@ public class MainActivity extends Activity {
 
 		try {
 			Process p = Runtime.getRuntime().exec(
-					new String[] {
-						"/system/xbin/su",
-						"-c",
-						scriptFile.getAbsolutePath() + " 2>&1"
+					new String [] {
+						scriptFile.getAbsolutePath(),
+						" 2>&1"
 					});
 			BufferedReader stdout = new BufferedReader(new InputStreamReader(p.getInputStream()));
 			BufferedReader stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()));
@@ -211,15 +214,51 @@ public class MainActivity extends Activity {
 				sb.append(line);
 				sb.append('\n');
 			}
+
+			stderr.close();
 			stdout.close();
+			p.waitFor();
+			scriptResult = p.exitValue();
 			return sb.toString();
 
 		} catch (IOException e) {
 			StringWriter sw = new StringWriter();
 			e.printStackTrace(new PrintWriter(sw));
 			return sw.toString();
+		} catch (InterruptedException e) {
+			StringWriter sw = new StringWriter();
+			e.printStackTrace(new PrintWriter(sw));
+			return sw.toString();
 		} finally {
 			scriptFile.delete();
+		}
+	}
+
+	
+	private String executeReboot() {
+		try {
+			Process p = Runtime.getRuntime().exec("reboot");
+
+			BufferedReader stdout = new BufferedReader(new InputStreamReader(p.getInputStream()));
+			BufferedReader stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+			StringBuilder sb = new StringBuilder();
+			String line;
+			while ((line = stdout.readLine()) != null) {
+				sb.append(line);
+				sb.append('\n');
+			}
+			while ((line = stderr.readLine()) != null) {
+				sb.append(line);
+				sb.append('\n');
+			}
+			stdout.close();
+			stderr.close();
+			return sb.toString();
+
+		} catch (IOException e) {
+			StringWriter sw = new StringWriter();
+			e.printStackTrace(new PrintWriter(sw));
+			return sw.toString();
 		}
 	}
 	
@@ -247,10 +286,10 @@ public class MainActivity extends Activity {
 				commitCreds = addr[1];
 				ptmxFops = addr[2];
 				msgView.setText("Get Address Success\n\n");
-				msgView.append("0x" + Long.toHexString(prepareKernelCred)+ ": prepare_kernel_cred\n\n" );
-				msgView.append("0x" + Long.toHexString(commitCreds) + ": commit_creds\n\n");
+				msgView.append("0x" + Long.toHexString(prepareKernelCred)+ ": prepare_kernel_cred\nn" );
+				msgView.append("0x" + Long.toHexString(commitCreds) + ": commit_creds\n");
 				msgView.append("0x" + Long.toHexString(ptmxFops) + ": ptmx_fops\n\n");
-				msgView.append("Press GetRoot Button");
+				msgView.append("Press GetRoot Button\n");
 
 				getrootButton.setEnabled(true);
 				return;
