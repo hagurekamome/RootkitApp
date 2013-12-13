@@ -405,14 +405,34 @@ public class MainActivity extends Activity {
 			}
 			msgView.append("OK\n\n");
 			
-			if(!copyFileAndSetPermission(new File("/system/etc/hw_config.sh"), new File("/data/local/tmp/hw_config.sh.org"), 00644)){
-				msgView.append("Backup error hw_config.sh.\n" );
-				return false;
+			int modefyflg = 0;
+			if(new File("/system/etc/hw_config.sh").exists()){
+				if(!copyFileAndSetPermission(new File("/system/etc/hw_config.sh"), new File("/data/local/tmp/hw_config.sh.org"), 00644)){
+					msgView.append("Backup error hw_config.sh.\n" );
+					return false;
+				}
+				modefyflg = 1;
+			}else {
+				if(new File("/system/etc/init.qcom.post_boot.sh").exists()){
+					if(!copyFileAndSetPermission(new File("/system/etc/init.qcom.post_boot.sh"), new File("/data/local/tmp/init.qcom.post_boot.sh.org"), 00644)){
+						msgView.append("Backup error init.qcom.post_boot.sh.\n" );
+						return false;
+					}
+					modefyflg = 2;
+				}else{
+					msgView.append("hw_config.sh or init.qcom.post_boot.sh file not found\n\n");
+					return false;
+				}
 			}
-			msgView.append("Modefy /system/etc/hw_config...");
+
+			String modefyFile = "/system/etc/hw_config.sh";
+			if(modefyflg == 2)
+				modefyFile = "/system/etc/init.qcom.post_boot.sh";
+			
+			msgView.append("Modefy " + modefyFile + "...");
 			try{
 				String enableInitd = "/system/xbin/busybox run-parts /system/etc/init.d\n";
-				BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("/system/etc/hw_config.sh", true), "UTF-8"));
+				BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(modefyFile, true), "UTF-8"));
 				bw.append(enableInitd);
 				bw.close();
 			}catch (FileNotFoundException e){
