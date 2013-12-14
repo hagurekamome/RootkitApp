@@ -12,13 +12,19 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
+import android.net.LocalServerSocket;
+import android.net.LocalSocket;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.FileUtils;
+import android.os.Handler;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.app.Activity;
 
@@ -27,11 +33,21 @@ public class MainActivity extends Activity {
 	private Button getrootButton;
 	private Button rebootButton;
 	private TextView msgView;
+	private ScrollView vScroll;
 	private int scriptResult;
 	private long prepareKernelCred = 0;
 	private long commitCreds = 0;
 	private long ptmxFops = 0;
 	private long addr[] = {0, 0, 0};
+	LocalServerSocket stdinoutserver = null;
+	private String LOCALSVR = "test";
+	private Handler mHandler = new Handler();
+	private StringBuffer sbText = new StringBuffer();
+	boolean isListen;
+	ListenThread listenthread;
+	int jni_result = 0;
+	getAddressThread task;
+
 	static {
 		System.loadLibrary("getroot");
 	}
@@ -45,25 +61,34 @@ public class MainActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 		
+		try {
+			stdinoutserver = new LocalServerSocket(LOCALSVR);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
 		getAddrButton = (Button)findViewById(R.id.button1);
 		getrootButton = (Button)findViewById(R.id.button2);
 		getrootButton.setEnabled(false);
 		rebootButton = (Button)findViewById(R.id.button3);
 		rebootButton.setEnabled(false);
 		msgView = (TextView)findViewById(R.id.textView1);
-
+		vScroll = (ScrollView)findViewById(R.id.scrollView1);
 		
 		getAddrButton.setOnClickListener(new OnClickListener(){
 		
 			@Override
 			public void onClick(View v) {
-				
-				AsyncAppTask task = new AsyncAppTask();
-				task.execute();
-				task = null;
+	    		msgView.setText("Searching Addresses.\nWait a few moment...\n\n");
+				getAddrButton.setEnabled(false);
 
+				isListen = true;
+				listenthread = new ListenThread();
+				listenthread.start();
+				
+				task = new getAddressThread();
+				task.start();
 			}
-			
 		});
 
 		getrootButton.setOnClickListener(new OnClickListener() {
@@ -82,6 +107,7 @@ public class MainActivity extends Activity {
 				msgView.append("Succeeded get root!!\n\n");
 				msgView.append("Please Reboot.");
 				rebootButton.setEnabled(true);
+				mHandler.post(postScroll);
 			}
 		});
 
@@ -93,6 +119,30 @@ public class MainActivity extends Activity {
 			}
 		});
 
+	}
+
+	private class getAddressThread extends Thread {
+		@Override
+		public void run() {
+			jni_result = native_getaddr(addr);
+			mHandler.post(postEnd);
+		}
+	}
+
+	@Override
+	protected void onDestroy() {
+		isListen = false;
+		try {
+			listenthread.join();
+			if (stdinoutserver != null) {
+				stdinoutserver.close();
+			}
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		super.onDestroy();
 	}
 
 	private boolean getRoot(long prepare_kernel_cred, long commit_creds, long ptmx_fops) {
@@ -215,59 +265,6 @@ public class MainActivity extends Activity {
 		}
 	}
 	
-	class AsyncAppTask extends AsyncTask<Void, Void, Integer>{
-		@Override
-		protected void onPreExecute() {
-    		msgView.setText("Searching Addresses.\nWait a few moment...\n\n");
-			getAddrButton.setEnabled(false);
-			
-		}
-
-		@Override
-		protected Integer doInBackground(Void... params) {
-			Integer bg_result = 0;
-			bg_result = native_getaddr(addr);
-			return bg_result;
-		}
-
-		@Override
-		 protected void onPostExecute(Integer bg_result){
-			if(bg_result == 0){
-				result = true;
-
-				prepareKernelCred = addr[0];
-				commitCreds = addr[1];
-				ptmxFops = addr[2];
-				msgView.append("Get Address Success\n\n");
-				msgView.append("0x" + Long.toHexString(prepareKernelCred)+ " : prepare_kernel_cred\n" );
-				msgView.append("0x" + Long.toHexString(commitCreds) + " : commit_creds\n");
-				msgView.append("0x" + Long.toHexString(ptmxFops) + " : ptmx_fops\n\n");
-				msgView.append("Press GetRoot Button\n");
-
-				getrootButton.setEnabled(true);
-				return;
-			}else {
-				switch(bg_result){
-				case -1:
-					msgView.setText("get_kallsyms_addresses error");
-					break;
-				case -2:
-					msgView.setText("search_functions error");
-					break;
-				case -3:
-					msgView.setText("search_ptmx_fops_address error");
-					break;
-					
-				}
-				msgView.append("Error = " + Integer.toString(bg_result));
-				result = false;
-				return;
-			}
-			 
-		 }
-		
-	}
-
 	private boolean copyFileAndSetPermission(File src, File dist, int mode){
 
 		if(!FileUtils.copyFile(src, dist))
@@ -325,6 +322,7 @@ public class MainActivity extends Activity {
 			msgView.append(str_result);
 			msgView.append("OK\n\n");
 			ricType = 1;
+			mHandler.post(postScroll);
 		}
 		if(new File("/systen/bin/ric").exists()){
 			msgView.append("Disable ric...");
@@ -338,11 +336,13 @@ public class MainActivity extends Activity {
 				return false;
 			msgView.append("OK\n\n");
 			ricType = 2;
+			mHandler.post(postScroll);
 		}
 
 		//remount system
 		if(!reMount("/system", "rw"))
 			return false;
+		mHandler.post(postScroll);
 
 		//Cpoy su
 		msgView.append("Copy su and set permission...");
@@ -351,6 +351,7 @@ public class MainActivity extends Activity {
 			return false;
 		}
 		msgView.append("OK\n\n");
+		mHandler.post(postScroll);
 		
 		msgView.append("Make symbolic link su...");
 		str_result =executeCommand(new String [] {"/system/bin/ln", "-s", "/system/xbin/su", "/system/bin/su"});
@@ -359,6 +360,7 @@ public class MainActivity extends Activity {
 				msgView.append("\n" + str_result +"\n");
 		}
 		msgView.append("OK\n\n");
+		mHandler.post(postScroll);
 
 		//Cpoy SuperSU
 		msgView.append("Copy Superuser.apk and set permission...");
@@ -367,6 +369,7 @@ public class MainActivity extends Activity {
 			return false;
 		}
 		msgView.append("OK\n\n");
+		mHandler.post(postScroll);
 
 		//Copy busybox
 		msgView.append("Copy busybox and set permission...");
@@ -375,6 +378,8 @@ public class MainActivity extends Activity {
 			return false;
 		}
 		msgView.append("OK\n\n");
+		mHandler.post(postScroll);
+
 		str_result =executeCommand(new String [] {"/system/bin/chown", "root.shell", "/system/xbin/busybox"});
 		if(str_result != ""){
 			msgView.append("\n" + str_result +"\n");
@@ -389,6 +394,7 @@ public class MainActivity extends Activity {
 			return false;
 		}
 		msgView.append("OK\n\n");
+		mHandler.post(postScroll);
 		
 		if(ricType == 1){
 			msgView.append("Make init.d directory...");
@@ -404,6 +410,7 @@ public class MainActivity extends Activity {
 				return false;
 			}
 			msgView.append("OK\n\n");
+			mHandler.post(postScroll);
 			
 			int modefyflg = 0;
 			if(new File("/system/etc/hw_config.sh").exists()){
@@ -443,6 +450,7 @@ public class MainActivity extends Activity {
 				return false;
 			}
 			msgView.append("OK\n\n");
+			mHandler.post(postScroll);
 		}
 		
 		//Copy 00stop_ric
@@ -453,6 +461,7 @@ public class MainActivity extends Activity {
 				return false;
 			}
 			msgView.append("OK\n\n");
+			mHandler.post(postScroll);
 		}
 		
 		//remount /system
@@ -483,4 +492,92 @@ public class MainActivity extends Activity {
 		msgView.append(str_result);
 		return false;
 	}
+
+	private class ListenThread extends Thread {
+		LocalSocket stdinout = null;
+		InputStream ins = null;
+
+		@Override
+		public void run() {
+			try {
+				byte[] buf = new byte[1024];
+				int len;
+
+				stdinout = stdinoutserver.accept();
+				ins = stdinout.getInputStream();
+				while ((len = ins.read(buf)) >= 0) {
+					if (!isListen) {
+						break;
+					}
+					String str = new String(buf);
+					sbText.append(str);
+					mHandler.post(postText);
+					mHandler.postDelayed(postScroll, 200);
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			} finally {
+				try {
+					if (ins != null) {
+						ins.close();
+					}
+					if (stdinout != null) {
+						stdinout.close();
+					}
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+
+	private final Runnable postText = new Runnable() {
+		public void run() {
+			msgView.append(sbText.toString());
+		}
+	};
+
+	private final Runnable postScroll = new Runnable() {
+		public void run() {
+			vScroll.fullScroll(View.FOCUS_DOWN);
+		}
+	};
+
+	private final Runnable postEnd = new Runnable() {
+		public void run() {
+			msgView.append(sbText.toString());
+			mHandler.post(postScroll);
+			if(jni_result == 0){
+				result = true;
+
+				prepareKernelCred = addr[0];
+				commitCreds = addr[1];
+				ptmxFops = addr[2];
+				msgView.append("Get Address Success\n\n");
+				msgView.append("0x" + Long.toHexString(prepareKernelCred)+ " : prepare_kernel_cred\n" );
+				msgView.append("0x" + Long.toHexString(commitCreds) + " : commit_creds\n");
+				msgView.append("0x" + Long.toHexString(ptmxFops) + " : ptmx_fops\n\n");
+				msgView.append("Press GetRoot Button\n");
+				getrootButton.setEnabled(true);
+				mHandler.post(postScroll);
+				return;
+			}else {
+				switch(jni_result){
+				case -1:
+					msgView.setText("get_kallsyms_addresses error");
+					break;
+				case -2:
+					msgView.setText("search_functions error");
+					break;
+				case -3:
+					msgView.setText("search_ptmx_fops_address error");
+					break;
+					
+				}
+				msgView.append("Error = " + Integer.toString(jni_result));
+				mHandler.post(postScroll);
+				return;
+			}
+		}
+	};
 }
