@@ -14,12 +14,9 @@ import java.io.StringWriter;
 
 import android.net.LocalServerSocket;
 import android.net.LocalSocket;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.FileUtils;
 import android.os.Handler;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -39,14 +36,14 @@ public class MainActivity extends Activity {
 	private long commitCreds = 0;
 	private long ptmxFops = 0;
 	private long addr[] = {0, 0, 0};
-	LocalServerSocket stdinoutserver = null;
+	private LocalServerSocket stdinoutserver = null;
 	private String LOCALSVR = "test";
 	private Handler mHandler = new Handler();
 	private StringBuffer sbText = new StringBuffer();
-	boolean isListen;
-	ListenThread listenthread;
-	int jni_result = 0;
-	getAddressThread task;
+	private boolean isListen;
+	private ListenThread listenthread;
+	private int jni_result = 0;
+	private getAddressThread task;
 
 	static {
 		System.loadLibrary("getroot");
@@ -501,11 +498,10 @@ public class MainActivity extends Activity {
 		public void run() {
 			try {
 				byte[] buf = new byte[1024];
-				int len;
 
 				stdinout = stdinoutserver.accept();
 				ins = stdinout.getInputStream();
-				while ((len = ins.read(buf)) >= 0) {
+				while (ins.read(buf) >= 0) {
 					if (!isListen) {
 						break;
 					}
