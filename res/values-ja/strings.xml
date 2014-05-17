@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="app_name">Rootkit Application for Xperia</string>
     <string name="getaddrButton">アドレス取得</string>
     <string name="getrootButton">Root取得</string>
     <string name="rebootButton">リブート</string>

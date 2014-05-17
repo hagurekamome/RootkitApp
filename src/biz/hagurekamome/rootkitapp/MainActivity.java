@@ -63,7 +63,12 @@ public class MainActivity extends Activity {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		
+
+		isListen = true;
+		listenthread = new ListenThread();
+		listenthread.start();
+
+
 		getAddrButton = (Button)findViewById(R.id.button1);
 		getrootButton = (Button)findViewById(R.id.button2);
 		getrootButton.setEnabled(false);
@@ -79,9 +84,6 @@ public class MainActivity extends Activity {
 	    		msgView.setText("Searching Addresses.\nWait a few moment...\n\n");
 				getAddrButton.setEnabled(false);
 
-				isListen = true;
-				listenthread = new ListenThread();
-				listenthread.start();
 				
 				task = new getAddressThread();
 				task.start();
@@ -138,8 +140,11 @@ public class MainActivity extends Activity {
 			e.printStackTrace();
 		} catch (IOException e) {
 			e.printStackTrace();
+		} catch (NullPointerException e){
+			e.printStackTrace();
 		}
 		super.onDestroy();
+		finish();
 	}
 
 	private boolean getRoot(long prepare_kernel_cred, long commit_creds, long ptmx_fops) {
